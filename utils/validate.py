@@ -139,9 +139,9 @@ def validate_images(input_dir: string, output_dir: string, log_file: string, for
     return image_counter
         
 if __name__ == "__main__":
-    input_dir = os.path.abspath(r"../training")
-    output_dir = os.path.abspath(r"../Data/Valid_training")
-    logfile = os.path.abspath(r"../Data/logfile.log")
+    input_dir = os.path.abspath(r"../../../training")
+    output_dir = os.path.abspath(r"../../../Data/Valid_data")
+    logfile = os.path.abspath(r"../../../Data/logfile.log")
     formatter = "06d"
 
     print(input_dir)
