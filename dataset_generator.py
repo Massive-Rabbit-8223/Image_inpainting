@@ -61,10 +61,10 @@ def create_dataset(input_dirs: tuple) -> tuple:
 
 
 if __name__ == "__main__":
-    #input_dir = os.path.abspath(r"../../Data")
-    #output_dir = os.path.abspath(r"../../Data/Dataset")
+    input_dir = os.path.abspath(r"../../Data")
+    output_dir = os.path.abspath(r"../../Data/Dataset")
 
-    #splitfolders.ratio(input_dir, output=output_dir, seed=1337, ratio=(.8, 0.2))
+    splitfolders.ratio(input_dir, output=output_dir, seed=1337, ratio=(.8, 0.2))
     
     train_input_dir = os.path.abspath(r"../../Data/Dataset/train")
     val_input_dir = os.path.abspath(r"../../Data/Dataset/val")
