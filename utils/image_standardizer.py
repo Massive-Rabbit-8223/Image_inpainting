@@ -46,7 +46,7 @@ class ImageStandardizer():
         std = []
 
         print("Analyze images:")
-        for image_file_path in tqdm(self.files[:5000]):
+        for image_file_path in tqdm(self.files):
             image = np.array(Image.open(image_file_path), dtype=np.float64) # load image as array
             mean.append(np.mean(image, axis=(0,1), dtype=np.float64))   # calculate the mean for all channels
             std.append(np.std(image, axis=(0,1), dtype=np.float64))     # calculate the std for all channels
@@ -65,7 +65,7 @@ class ImageStandardizer():
         if (self.mean.all() == None) or (self.std.all() == None):   # check if mean and std values are valid
             raise ValueError("Mean and standard deviation can not have a value of None!")
 
-        for image_file_path in tqdm(self.files[:5000]):
+        for image_file_path in tqdm(self.files):
             image = np.array(Image.open(image_file_path), dtype=np.float32) # load image as array
             standardized_image = (image-self.mean) / self.std   # standardize image to have zero mean and unit variance
             yield standardized_image.astype('float32')
