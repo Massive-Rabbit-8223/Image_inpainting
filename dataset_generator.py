@@ -13,22 +13,35 @@ from tqdm import tqdm
  
 
 class ImageDataset(Dataset):
-    def __init__(self, img_standardizer: ImageStandardizer) -> None:
+    def __init__(self, img_standardizer: ImageStandardizer, spacing_range: tuple, offset_range: tuple) -> None:
         features = []
         targets = []
         images = []
         known_pixels = []
+        spacing_list = []
+        offset_list = []
         print("Create Dataset:")
         for img in img_standardizer.get_standardized_images():
 
-            img_resized = torchvision.transforms.Resize((100,100))(torch.swapaxes(torch.swapaxes(torch.tensor(img), 2, 1),1,0))
+            img_resized = torchvision.transforms.Resize((100,100))(torch.swapaxes(torch.swapaxes(torch.tensor(img), 2, 1),1,0)) # resized to (100, 100) because test images are in that shape
+            
+            spacing_x = np.random.randint(spacing_range[0], spacing_range[1]+1)
+            spacing_y = np.random.randint(spacing_range[0], spacing_range[1]+1)
+            offset_x = np.random.randint(offset_range[0], offset_range[1]+1)
+            offset_y = np.random.randint(offset_range[0], offset_range[1]+1)
 
-            input_array, known_array, target_array = ex4(torch.swapaxes(torch.swapaxes(img_resized, 0, 1),1,2).cpu().detach().numpy(), (2, 2), (2, 2))  # needs to be variable
+            input_array, known_array, target_array = ex4(
+                image_array=torch.swapaxes(torch.swapaxes(img_resized, 0, 1),1,2).cpu().detach().numpy(), 
+                offset=(offset_x, offset_y), 
+                spacing=(spacing_x, spacing_y)
+            )  # needs to be variable
 
             features.append(torch.tensor(input_array))
             targets.append(torch.tensor(target_array))
             images.append(img_resized)
             known_pixels.append(torch.tensor(known_array))
+            spacing_list.append((spacing_x, spacing_y))
+            offset_list.append((offset_x, offset_y))
 
         self.length = len(features)
 
@@ -36,26 +49,29 @@ class ImageDataset(Dataset):
         self.targets = targets
         self.images = images
         self.known_pixels = known_pixels
+        self.spacing = spacing_list
+        self.offset = offset_list
 
     def __len__(self):
         return self.length
 
     def __getitem__(self, index):
-        return (self.features[index], self.targets[index], self.images[index], self.known_pixels[index])
+        return (self.features[index], self.targets[index], self.images[index], self.known_pixels[index], self.spacing[index], self.offset[index])
 
-def create_dataset(input_dirs: tuple) -> tuple:
+def create_dataset(input_dirs: tuple, spacing_range: tuple, offset_range: tuple) -> tuple:
     train_dir = input_dirs[0]
     val_dir = input_dirs[1]
 
     train_img_standardizer = ImageStandardizer(train_dir)
-    train_mean, train_std = train_img_standardizer.analyze_images()
+    train_mean, train_std = train_img_standardizer.analyze_images() # take normalizing constants from training data
 
     val_img_standardizer = ImageStandardizer(val_dir)
-    val_img_standardizer.mean = train_mean
+    val_img_standardizer.mean = train_mean  # use normalizing constants from training set and apply on validation set
     val_img_standardizer.std = train_std
 
-    train_dataset = ImageDataset(train_img_standardizer)
-    val_dataset = ImageDataset(val_img_standardizer)
+    train_dataset = ImageDataset(train_img_standardizer, spacing_range, offset_range)
+    val_dataset = ImageDataset(val_img_standardizer, spacing_range, offset_range)
+    ## create test dataset
 
     return (train_dataset, val_dataset)
 

@@ -45,7 +45,7 @@ def train_network(model, optimizer, criterion, n_epochs, train_dataloader, val_d
     # get initial evaluation on validation set
     model.eval()
     with torch.no_grad():
-        for f, t, i, k in val_dataloader:
+        for f, t, i, k, _, _ in val_dataloader:
             pred = model(f.to(device))
             test_loss = criterion(pred, i.to(device))
     writer.add_scalar(tag="validation/loss", scalar_value=test_loss.cpu(), global_step=0)
@@ -56,7 +56,7 @@ def train_network(model, optimizer, criterion, n_epochs, train_dataloader, val_d
             counter = 0
             model.train()
         
-            for f, t, i, k in train_dataloader:
+            for f, t, i, k, _, _ in train_dataloader:
                 model.train()
                 update = epoch*size_train_loader + counter
                 pbar.set_description(f"Epoch {epoch}")
@@ -85,7 +85,7 @@ def train_network(model, optimizer, criterion, n_epochs, train_dataloader, val_d
 
             model.eval()
             with torch.no_grad():
-                for f, t, i, k in val_dataloader:
+                for f, t, i, k, _, _ in val_dataloader:
                     #print("f: ", f.shape)
                     pred = model(f.to(device))
                     test_loss = criterion(pred, i.to(device))
@@ -105,7 +105,7 @@ def create_data_dict(model, criterion, dataloader, device):
 
     model.eval()
     with torch.no_grad():
-        for f, t, i, k in dataloader:
+        for f, t, i, k, _, _ in dataloader:
             pred = model(f.to(device))
             loss = criterion(pred, i.to(device))
 
@@ -123,9 +123,20 @@ def create_data_dict(model, criterion, dataloader, device):
 
     return data_dict
 
-def create_test_predictions(model, device):
+def create_test_predictions(model, device, test_dataset, mean, var):
     """
     Create predictions from test set and return in correct format, 
     ready for upload to challenge server! 
     """
-    pass
+    pred_pixels_list = []
+
+    model.eval()
+    with torch.no_grad():
+        for input_image, known_array in test_dataset:
+            pred_image = model(input_image.to(device))
+            ## undo normalization ##
+            # TODO #
+            target_array = pred_image[known_array < 1]
+            pred_pixels_list.append(target_array)
+
+    return pred_pixels_list

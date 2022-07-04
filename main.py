@@ -33,7 +33,9 @@ config = {
         "formatter": "06d",
         "train_val_split_folder": r"Dataset",
         "seed": 1337,
-        "train_val_split_ratio": (0.8, 0.2)
+        "train_val_split_ratio": (0.8, 0.2),
+        "spacing_range": (2, 6),
+        "offset_range": (1, 8)
     },
     "Model": {
         "lr": 5e-4,
@@ -50,6 +52,7 @@ CREATE_DATASET = False
 TRAIN_MODEL = False
 LOG_MODEL = False
 CREATE_DATA_DICTS = True
+CREATE_TEST_SUBMISSION = False
 
 train_input_dir = os.path.join(os.path.join(config["Data"]["data_dir"], config["Data"]["train_val_split_folder"]), "train/")
 val_input_dir = os.path.join(os.path.join(config["Data"]["data_dir"], config["Data"]["train_val_split_folder"]), "val/")
@@ -60,6 +63,8 @@ if CREATE_DATASET == True:
     if FILTER_IMAGES == True:
         print("Filter images:")
         print("input dir: ", config["Data"]["raw_img_dir"])
+
+        ## Check if images are in correct format etc. ##
         valid_img_count = validate_images(
             input_dir=config["Data"]["raw_img_dir"], 
             output_dir=os.path.join(config["Data"]["data_dir"], config["Data"]["valid_img_folder"]), 
@@ -70,6 +75,7 @@ if CREATE_DATASET == True:
 
     print("Create dataset:")
 
+    ## Split data into train an validation set ##
     splitfolders.ratio(
         input=config["Data"]["data_dir"], 
         output=os.path.join(config["Data"]["data_dir"], config["Data"]["train_val_split_folder"]), 
@@ -80,8 +86,11 @@ if CREATE_DATASET == True:
     print("train_input_dir: ", train_input_dir)
     print("val_input_dir: ", val_input_dir)
 
+    ## create datasets for training and validation ##
     train_dataset, val_dataset = create_dataset(
-        (train_input_dir, val_input_dir)
+        input_dirs=(train_input_dir, val_input_dir),
+        spacing_range=config["Data"]["spacing_range"],
+        offset_range=config["Data"]["offset_range"]
     )
 
     print(f"train_dataset length: {len(train_dataset)}")
@@ -169,5 +178,11 @@ if CREATE_DATA_DICTS == True:
     )
     print("Saving Val Data Dict...")
     save_dict_hdf5(val_data_dict, path_to_val_data_dict)
+
+if CREATE_TEST_SUBMISSION == True:
+    # call 'create_test_predictions' function
+    # save prediction to pickle file
+    pass
+
 
 print("Run Finished!")
