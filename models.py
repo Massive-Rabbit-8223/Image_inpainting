@@ -8,13 +8,14 @@ import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import os
+import numpy as np
 
 class Autoencoder(nn.Module):
     def __init__(self):
         super(Autoencoder, self).__init__()
 
         self.encoder = nn.Sequential( # like the Composition layer you built
-            nn.Conv2d(3, 16, 3, stride=2, padding=1),
+            nn.Conv2d(6, 16, 3, stride=2, padding=1),
             nn.ReLU(),
             nn.Conv2d(16, 32, 3, stride=2, padding=1),
             nn.ReLU(),
@@ -37,6 +38,37 @@ class Autoencoder(nn.Module):
         ## apply weight initialization ##
         pass
 
+class SimpleCNN(torch.nn.Module):
+    def __init__(self, n_in_channels: int = 6, n_hidden_layers: int = 3, n_kernels: int = 32, kernel_size: int = 7):
+        """Simple CNN with `n_hidden_layers`, `n_kernels`, and `kernel_size` as hyperparameters"""
+        super().__init__()
+        print("n_hidden_layers: ", n_hidden_layers)
+        print("n_kernels: ", n_kernels)
+        cnn = []
+        for i in range(n_hidden_layers):
+            cnn.append(torch.nn.Conv2d(
+                in_channels=n_in_channels,
+                out_channels=n_kernels,
+                kernel_size=kernel_size,
+                padding=int(kernel_size / 2)
+            ))
+            cnn.append(torch.nn.ReLU())
+            n_in_channels = n_kernels
+        self.hidden_layers = torch.nn.Sequential(*cnn)
+        
+        self.output_layer = torch.nn.Conv2d(
+            in_channels=n_in_channels,
+            out_channels=3,
+            kernel_size=kernel_size,
+            padding=int(kernel_size / 2)
+        )
+    
+    def forward(self, x):
+        """Apply CNN to input `x` of shape (N, n_channels, X, Y), where N=n_samples and X, Y are spatial dimensions"""
+        cnn_out = self.hidden_layers(x)  # apply hidden layers (N, n_in_channels, X, Y) -> (N, n_kernels, X, Y)
+        pred = self.output_layer(cnn_out)  # apply output layer (N, n_kernels, X, Y) -> (N, 1, X, Y)
+        return pred
+
 def train_network(model, optimizer, criterion, n_epochs, train_dataloader, val_dataloader, device, experiment_id):
     # create tensorboard writer
     writer = SummaryWriter(log_dir=os.path.join("results", experiment_id))
@@ -44,11 +76,13 @@ def train_network(model, optimizer, criterion, n_epochs, train_dataloader, val_d
 
     # get initial evaluation on validation set
     model.eval()
+    val_loss_list = []
     with torch.no_grad():
-        for f, t, i, k, _, _ in val_dataloader:
-            pred = model(f.to(device))
+        for f, i, k, _, _ in val_dataloader:
+            pred = model(torch.cat([f, k], axis=1).to(device))
             test_loss = criterion(pred, i.to(device))
-    writer.add_scalar(tag="validation/loss", scalar_value=test_loss.cpu(), global_step=0)
+            val_loss_list.append(test_loss.cpu().item())
+    writer.add_scalar(tag="validation/loss", scalar_value=torch.mean(torch.tensor(val_loss_list)), global_step=0)
 
     with tqdm(total=len(train_dataloader), unit="batch") as pbar:
         for epoch in range(n_epochs):
@@ -56,13 +90,13 @@ def train_network(model, optimizer, criterion, n_epochs, train_dataloader, val_d
             counter = 0
             model.train()
         
-            for f, t, i, k, _, _ in train_dataloader:
+            for f, i, k, _, _ in train_dataloader:
                 model.train()
                 update = epoch*size_train_loader + counter
                 pbar.set_description(f"Epoch {epoch}")
 
                 # Compute prediction and loss
-                pred = model(f.to(device))
+                pred = model(torch.cat([f, k], axis=1).to(device))
                 loss = criterion(pred, i.to(device))
 
                 # Backpropagation
@@ -84,12 +118,13 @@ def train_network(model, optimizer, criterion, n_epochs, train_dataloader, val_d
                 pbar.update(1)
 
             model.eval()
+            val_loss_list = []
             with torch.no_grad():
-                for f, t, i, k, _, _ in val_dataloader:
-                    #print("f: ", f.shape)
-                    pred = model(f.to(device))
+                for f, i, k, _, _ in val_dataloader:
+                    pred = model(torch.cat([f, k], axis=1).to(device))
                     test_loss = criterion(pred, i.to(device))
-            writer.add_scalar(tag="validation/loss", scalar_value=test_loss.cpu(), global_step=update)
+                    val_loss_list.append(test_loss.cpu().item())
+            writer.add_scalar(tag="validation/loss", scalar_value=torch.mean(torch.tensor(val_loss_list)), global_step=update)
             pbar.refresh()
             pbar.reset()
 
@@ -105,8 +140,8 @@ def create_data_dict(model, criterion, dataloader, device):
 
     model.eval()
     with torch.no_grad():
-        for f, t, i, k, _, _ in dataloader:
-            pred = model(f.to(device))
+        for f, i, k, _, _ in dataloader:
+            pred = model(torch.cat([f, k], axis=1).to(device))
             loss = criterion(pred, i.to(device))
 
             input_image_list.append(f)
@@ -123,7 +158,7 @@ def create_data_dict(model, criterion, dataloader, device):
 
     return data_dict
 
-def create_test_predictions(model, device, test_dataset, mean, var):
+def create_test_predictions(model, device, test_dataset):
     """
     Create predictions from test set and return in correct format, 
     ready for upload to challenge server! 
@@ -132,11 +167,11 @@ def create_test_predictions(model, device, test_dataset, mean, var):
 
     model.eval()
     with torch.no_grad():
-        for input_image, known_array in test_dataset:
-            pred_image = model(input_image.to(device))
-            ## undo normalization ##
-            # TODO #
-            target_array = pred_image[known_array < 1]
-            pred_pixels_list.append(target_array)
+        for input_image, known_array, _, _ in tqdm(test_dataset):
+            pred_image = model(torch.from_numpy(np.concatenate([input_image, known_array.copy()], axis=0)).float().to(device))
+               
+            denorm_pred_image = test_dataset.denormalize_image(pred_image).cpu().detach().numpy()
+            target_array = denorm_pred_image[known_array == 0].copy()
+            pred_pixels_list.append(np.clip(target_array, 0, 255).astype(np.uint8))
 
     return pred_pixels_list

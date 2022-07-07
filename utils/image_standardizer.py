@@ -68,4 +68,16 @@ class ImageStandardizer():
         for image_file_path in tqdm(self.files):
             image = np.array(Image.open(image_file_path), dtype=np.float32) # load image as array
             standardized_image = (image-self.mean) / self.std   # standardize image to have zero mean and unit variance
-            yield standardized_image.astype('float32')
+            yield (standardized_image.astype('float32'), image)
+
+    def get_normalized_images(self) -> np.ndarray:
+        """
+        Open images as array.
+        Normalize images by dividing by 255
+        Yield normalized images.
+        """
+
+        for image_file_path in tqdm(self.files):
+            image = np.array(Image.open(image_file_path), dtype=np.float32) # load image as array
+            normalized_image = image / 255   # normaĺize image to be in range [0, 1]
+            yield (normalized_image.astype('float32'), image)
